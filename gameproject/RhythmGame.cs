@@ -41,20 +41,40 @@ namespace gameproject
         // Метод для обновления состояния точки сбора нот
         public void Update(GameTime gameTime, InputState input, List<Note> notes)
         {
-            // Обновление позиции и состояния в зависимости от ввода пользователя и столкновений с нотами
-            // ...
+            foreach (var note in notes)
+            {
+                if (IsCollidingWith(note))
+                {
+                    State = GetCollectionPointStateForNote(note, input);
+                    // Дополнительная логика для обработки взаимодействия с нотой
+                }
+            }
+
+            // Обновление позиции точки сбора нот в зависимости от ввода пользователя
+            if (input.IsKeyDown(Keys.W) || input.IsKeyDown(Keys.Up))
+            {
+                Position = new Vector2(Position.X, Position.Y - 1);
+            }
+            if (input.IsKeyDown(Keys.S) || input.IsKeyDown(Keys.Down))
+            {
+                Position = new Vector2(Position.X, Position.Y + 1);
+            }
         }
 
         // Метод для проверки столкновения точки сбора нот с нотой
         private bool IsCollidingWith(Note note)
         {
-            // Реализация проверки столкновения
+            return Vector2.Distance(Position, note.Position) < 10; // примерное расстояние для столкновения
         }
 
         // Метод для получения состояния точки сбора нот в зависимости от ноты и ввода
         private CollectionPointState GetCollectionPointStateForNote(Note note, InputState input)
         {
-            // Реализация получения состояния
+            if (note.Type == NoteType.Tap && input.IsKeyPressed(Keys.Space))
+            {
+                return CollectionPointState.Super;
+            }
+            return CollectionPointState.Miss;
         }
     }
 
@@ -67,17 +87,18 @@ namespace gameproject
         Miss
     }
 
-    // Другие свойства и методы, необходимые для визуализации и анимации точки сбора нот
-
     public class GameModel
     {
         public Track Track1 { get; set; } = new Track();
         public Track Track2 { get; set; } = new Track();
         public float AttentionMeter { get; set; } = 0.0f;
+        public InputState InputState { get; private set; } = new InputState(); // Добавлено
 
         // Обновляем модели игры
         public void Update(GameTime gameTime)
         {
+            InputState.Update(); // Добавлено
+
             // Логика обновления позиций нот, обработки ввода и т.д.
         }
     }
@@ -110,11 +131,11 @@ namespace gameproject
 
         public void Update(GameTime gameTime)
         {
-            // Обновление модели, основанное на пользовательском вводе
+            _model.InputState.Update(); // Добавлено
+            // Дополнительная логика обновления модели на основе ввода пользователя
         }
     }
 
-    // Основной класс игры
     public class RhythmGame : Game
     {
         private GraphicsDeviceManager _graphics;
@@ -162,6 +183,57 @@ namespace gameproject
             _view.Draw();
 
             base.Draw(gameTime);
+        }
+    }
+
+    // Класс InputState для управления состоянием ввода пользователя
+    public class InputState
+    {
+        public KeyboardState CurrentKeyboardState { get; private set; }
+        public KeyboardState LastKeyboardState { get; private set; }
+
+        public MouseState CurrentMouseState { get; private set; }
+        public MouseState LastMouseState { get; private set; }
+
+        // Конструктор
+        public InputState()
+        {
+            CurrentKeyboardState = Keyboard.GetState();
+            CurrentMouseState = Mouse.GetState();
+        }
+
+        // Обновление состояний клавиатуры и мыши
+        public void Update()
+        {
+            LastKeyboardState = CurrentKeyboardState;
+            CurrentKeyboardState = Keyboard.GetState();
+
+            LastMouseState = CurrentMouseState;
+            CurrentMouseState = Mouse.GetState();
+        }
+
+        // Проверка нажатия клавиши
+        public bool IsKeyPressed(Keys key)
+        {
+            return CurrentKeyboardState.IsKeyDown(key) && LastKeyboardState.IsKeyUp(key);
+        }
+
+        // Проверка отпуска клавиши
+        public bool IsKeyReleased(Keys key)
+        {
+            return CurrentKeyboardState.IsKeyUp(key) && LastKeyboardState.IsKeyDown(key);
+        }
+
+        // Проверка удержания клавиши
+        public bool IsKeyDown(Keys key)
+        {
+            return CurrentKeyboardState.IsKeyDown(key);
+        }
+
+        // Проверка клика мыши
+        public bool IsLeftMouseClicked()
+        {
+            return CurrentMouseState.LeftButton == ButtonState.Pressed && LastMouseState.LeftButton == ButtonState.Released;
         }
     }
 }
