@@ -1,4 +1,4 @@
-﻿using Microsoft.Xna.Framework; 
+﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
@@ -29,6 +29,15 @@ namespace gameproject
         {
             Notes.Add(new Note { Type = type, Position = position, IsActive = true, Duration = duration });
         }
+    }
+
+    public enum CollectionPointState
+    {
+        Super,
+        Good,
+        Ok,
+        Bad,
+        Miss
     }
 
     public class NoteCollectionPoint
@@ -89,14 +98,6 @@ namespace gameproject
         }
     }
 
-    public enum CollectionPointState
-    {
-        Super,
-        Good,
-        Ok,
-        Bad,
-        Miss
-    }
 
     public class GameModel
     {
@@ -108,8 +109,16 @@ namespace gameproject
             get { return _attentionMeter; }
             private set { _attentionMeter = value; }
         }
-        public InputState InputState { get; private set; } = new InputState(); // Добавлено
+        public InputState InputState { get; private set; } = new InputState();
         public NoteCollectionPoint CollectionPoint { get; set; }
+
+        // Добавленные свойства
+        public int SuperCount { get; private set; }
+        public int GoodCount { get; private set; }
+        public int OkCount { get; private set; }
+        public int BadCount { get; private set; }
+        public int MissCount { get; private set; }
+        public int Score { get; private set; }
 
         public GameModel()
         {
@@ -119,11 +128,14 @@ namespace gameproject
         // Обновляем модели игры
         public void Update(GameTime gameTime)
         {
-            InputState.Update(); // Добавлено
+            InputState.Update();
 
             // Обновляем точку сбора нот
             CollectionPoint.Update(gameTime, InputState, Track1.Notes, ref _attentionMeter);
             CollectionPoint.Update(gameTime, InputState, Track2.Notes, ref _attentionMeter);
+
+            // Обновляем количество попаданий и очки
+            UpdateScore();
 
             // Логика обновления позиций нот, обработки ввода и т.д.
             // Проверка на проигрыш
@@ -132,7 +144,36 @@ namespace gameproject
                 // Игрок проиграл, можно добавить дополнительную логику обработки
             }
         }
+
+        private void UpdateScore()
+        {
+            // Обновление счетчиков попаданий и очков
+            switch (CollectionPoint.State)
+            {
+                case CollectionPointState.Super:
+                    SuperCount++;
+                    Score += 250;
+                    break;
+                case CollectionPointState.Good:
+                    GoodCount++;
+                    Score += 150;
+                    break;
+                case CollectionPointState.Ok:
+                    OkCount++;
+                    Score += 100;
+                    break;
+                case CollectionPointState.Bad:
+                    BadCount++;
+                    Score += 50;
+                    break;
+                case CollectionPointState.Miss:
+                    MissCount++;
+                    Score -= 10;
+                    break;
+            }
+        }
     }
+
 
     public class GameView
     {
@@ -140,13 +181,23 @@ namespace gameproject
         private GameModel _model;
         private Texture2D _noteTexture;
         private Texture2D _attentionMeterTexture;
+        private Texture2D _playerIdleTexture;
+        private Texture2D _playerUpTexture;
+        private Texture2D _playerDownTexture;
+        private Texture2D _enemyTexture;
+        private SpriteFont _font;
 
-        public GameView(SpriteBatch spriteBatch, GameModel model, Texture2D noteTexture, Texture2D attentionMeterTexture)
+        public GameView(SpriteBatch spriteBatch, GameModel model, Texture2D noteTexture, Texture2D attentionMeterTexture, Texture2D playerIdleTexture, Texture2D playerUpTexture, Texture2D playerDownTexture, Texture2D enemyTexture, SpriteFont font)
         {
             _spriteBatch = spriteBatch;
             _model = model;
             _noteTexture = noteTexture ?? throw new ArgumentNullException(nameof(noteTexture));
             _attentionMeterTexture = attentionMeterTexture ?? throw new ArgumentNullException(nameof(attentionMeterTexture));
+            _playerIdleTexture = playerIdleTexture ?? throw new ArgumentNullException(nameof(playerIdleTexture));
+            _playerUpTexture = playerUpTexture ?? throw new ArgumentNullException(nameof(playerUpTexture));
+            _playerDownTexture = playerDownTexture ?? throw new ArgumentNullException(nameof(playerDownTexture));
+            _enemyTexture = enemyTexture ?? throw new ArgumentNullException(nameof(enemyTexture));
+            _font = font ?? throw new ArgumentNullException(nameof(font));
         }
 
         public void Draw()
@@ -175,22 +226,57 @@ namespace gameproject
             // Рисование индикатора уровня внимания
             _spriteBatch.Draw(_attentionMeterTexture, new Rectangle(10, 10, (int)(_model.AttentionMeter * 200), 20), Color.Green);
 
+            // Рисование персонажа
+            Texture2D playerTexture = _playerIdleTexture;
+            if (_model.InputState.IsKeyDown(Keys.W) || _model.InputState.IsKeyDown(Keys.Up))
+            {
+                playerTexture = _playerUpTexture;
+            }
+            else if (_model.InputState.IsKeyDown(Keys.S) || _model.InputState.IsKeyDown(Keys.Down))
+            {
+                playerTexture = _playerDownTexture;
+            }
+            _spriteBatch.Draw(playerTexture, new Vector2(50, 300), Color.White);
+
+            // Рисование врага
+            _spriteBatch.Draw(_enemyTexture, new Vector2(500, 300), Color.White);
+
+            // Рисование счета
+            _spriteBatch.DrawString(_font, "Super: " + _model.SuperCount, new Vector2(10, 40), Color.White);
+            _spriteBatch.DrawString(_font, "Good: " + _model.GoodCount, new Vector2(10, 60), Color.White);
+            _spriteBatch.DrawString(_font, "Ok: " + _model.OkCount, new Vector2(10, 80), Color.White);
+            _spriteBatch.DrawString(_font, "Bad: " + _model.BadCount, new Vector2(10, 100), Color.White);
+            _spriteBatch.DrawString(_font, "Miss: " + _model.MissCount, new Vector2(10, 120), Color.White);
+            _spriteBatch.DrawString(_font, "Score: " + _model.Score, new Vector2(10, 140), Color.White);
+
             _spriteBatch.End();
         }
     }
 
-    public class GameController
-    {
-        private GameModel _model;
 
-        public GameController(GameModel model)
+    // Класс для обработки ввода
+    public class InputState
+    {
+        private KeyboardState _currentKeyboardState;
+        private KeyboardState _previousKeyboardState;
+
+        // Обновление состояния клавиатуры
+        public void Update()
         {
-            _model = model;
+            _previousKeyboardState = _currentKeyboardState;
+            _currentKeyboardState = Keyboard.GetState();
         }
 
-        public void Update(GameTime gameTime)
+        // Проверка, нажата ли клавиша
+        public bool IsKeyDown(Keys key)
         {
-            _model.Update(gameTime);
+            return _currentKeyboardState.IsKeyDown(key);
+        }
+
+        // Проверка, была ли клавиша нажата в текущем кадре
+        public bool IsKeyPressed(Keys key)
+        {
+            return _currentKeyboardState.IsKeyDown(key) && !_previousKeyboardState.IsKeyDown(key);
         }
     }
 
@@ -200,9 +286,6 @@ namespace gameproject
         private SpriteBatch _spriteBatch;
         private GameModel _model;
         private GameView _view;
-        private GameController _controller;
-        private Texture2D _noteTexture;
-        private Texture2D _attentionMeterTexture;
 
         public RhythmGame()
         {
@@ -213,18 +296,24 @@ namespace gameproject
 
         protected override void Initialize()
         {
-            _model = new GameModel();
-            _spriteBatch = new SpriteBatch(GraphicsDevice);
-
             base.Initialize();
         }
 
         protected override void LoadContent()
         {
-            _noteTexture = Content.Load<Texture2D>("Note"); // Загрузка текстуры ноты
-            _attentionMeterTexture = Content.Load<Texture2D>("AttentionMeter"); // Загрузка текстуры индикатора внимания
-            _view = new GameView(_spriteBatch, _model, _noteTexture, _attentionMeterTexture);
-            _controller = new GameController(_model);
+            _spriteBatch = new SpriteBatch(GraphicsDevice);
+            _model = new GameModel();
+
+            // Загрузка текстур и шрифтов
+            Texture2D noteTexture = Content.Load<Texture2D>("Note");
+            Texture2D attentionMeterTexture = Content.Load<Texture2D>("AttentionMeter");
+            Texture2D playerIdleTexture = Content.Load<Texture2D>("playerIdleTexture");
+            Texture2D playerUpTexture = Content.Load<Texture2D>("playerUpTexture");
+            Texture2D playerDownTexture = Content.Load<Texture2D>("playerDownTexture");
+            Texture2D enemyTexture = Content.Load<Texture2D>("enemyTexture");
+            SpriteFont font = Content.Load<SpriteFont>("font");
+
+            _view = new GameView(_spriteBatch, _model, noteTexture, attentionMeterTexture, playerIdleTexture, playerUpTexture, playerDownTexture, enemyTexture, font);
         }
 
         protected override void Update(GameTime gameTime)
@@ -232,7 +321,7 @@ namespace gameproject
             if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || Keyboard.GetState().IsKeyDown(Keys.Escape))
                 Exit();
 
-            _controller.Update(gameTime);
+            _model.Update(gameTime);
 
             base.Update(gameTime);
         }
@@ -246,56 +335,4 @@ namespace gameproject
             base.Draw(gameTime);
         }
     }
-
-    // Класс InputState для управления состоянием ввода пользователя
-    public class InputState
-    {
-        public KeyboardState CurrentKeyboardState { get; private set; }
-        public KeyboardState LastKeyboardState { get; private set; }
-
-        public MouseState CurrentMouseState { get; private set; }
-        public MouseState LastMouseState { get; private set; }
-
-        // Конструктор
-        public InputState()
-        {
-            CurrentKeyboardState = Keyboard.GetState();
-            CurrentMouseState = Mouse.GetState();
-        }
-
-        // Обновление состояний клавиатуры и мыши
-        public void Update()
-        {
-            LastKeyboardState = CurrentKeyboardState;
-            CurrentKeyboardState = Keyboard.GetState();
-
-            LastMouseState = CurrentMouseState;
-            CurrentMouseState = Mouse.GetState();
-        }
-
-        // Проверка нажатия клавиши
-        public bool IsKeyPressed(Keys key)
-        {
-            return CurrentKeyboardState.IsKeyDown(key) && LastKeyboardState.IsKeyUp(key);
-        }
-        // Проверка отпуска клавиши
-        public bool IsKeyReleased(Keys key)
-        {
-            return CurrentKeyboardState.IsKeyUp(key) && LastKeyboardState.IsKeyDown(key);
-        }
-
-        // Проверка удержания клавиши
-        public bool IsKeyDown(Keys key)
-        {
-            return CurrentKeyboardState.IsKeyDown(key);
-        }
-
-        // Проверка клика мыши
-        public bool IsLeftMouseClicked()
-        {
-            return CurrentMouseState.LeftButton == ButtonState.Pressed && LastMouseState.LeftButton == ButtonState.Released;
-        }
-    }
 }
-
-
