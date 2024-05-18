@@ -1,6 +1,7 @@
-﻿using Microsoft.Xna.Framework;
+﻿using Microsoft.Xna.Framework; 
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using System;
 using System.Collections.Generic;
 
 namespace gameproject
@@ -38,15 +39,25 @@ namespace gameproject
         // Состояние будет отражать результат взаимодействия с нотами (Супер, Хорошо, Норм, Плохо, Мисс).
         public CollectionPointState State { get; private set; }
 
+        public NoteCollectionPoint(Vector2 initialPosition)
+        {
+            Position = initialPosition;
+            State = CollectionPointState.Miss;
+        }
+
         // Метод для обновления состояния точки сбора нот
-        public void Update(GameTime gameTime, InputState input, List<Note> notes)
+        public void Update(GameTime gameTime, InputState input, List<Note> notes, ref float attentionMeter)
         {
             foreach (var note in notes)
             {
                 if (IsCollidingWith(note))
                 {
                     State = GetCollectionPointStateForNote(note, input);
-                    // Дополнительная логика для обработки взаимодействия с нотой
+                    if (State == CollectionPointState.Miss)
+                    {
+                        attentionMeter += 0.1f; // Увеличиваем шкалу внимания при пропуске ноты
+                    }
+                    note.IsActive = false; // Деактивируем ноту после взаимодействия
                 }
             }
 
@@ -64,7 +75,7 @@ namespace gameproject
         // Метод для проверки столкновения точки сбора нот с нотой
         private bool IsCollidingWith(Note note)
         {
-            return Vector2.Distance(Position, note.Position) < 10; // примерное расстояние для столкновения
+            return note.IsActive && Vector2.Distance(Position, note.Position) < 10; // примерное расстояние для столкновения
         }
 
         // Метод для получения состояния точки сбора нот в зависимости от ноты и ввода
@@ -91,15 +102,35 @@ namespace gameproject
     {
         public Track Track1 { get; set; } = new Track();
         public Track Track2 { get; set; } = new Track();
-        public float AttentionMeter { get; set; } = 0.0f;
+        private float _attentionMeter; // Приватное поле для хранения значения AttentionMeter
+        public float AttentionMeter
+        {
+            get { return _attentionMeter; }
+            private set { _attentionMeter = value; }
+        }
         public InputState InputState { get; private set; } = new InputState(); // Добавлено
+        public NoteCollectionPoint CollectionPoint { get; set; }
+
+        public GameModel()
+        {
+            CollectionPoint = new NoteCollectionPoint(new Vector2(100, 100)); // Начальная позиция точки сбора нот
+        }
 
         // Обновляем модели игры
         public void Update(GameTime gameTime)
         {
             InputState.Update(); // Добавлено
 
+            // Обновляем точку сбора нот
+            CollectionPoint.Update(gameTime, InputState, Track1.Notes, ref _attentionMeter);
+            CollectionPoint.Update(gameTime, InputState, Track2.Notes, ref _attentionMeter);
+
             // Логика обновления позиций нот, обработки ввода и т.д.
+            // Проверка на проигрыш
+            if (_attentionMeter >= 1.0f)
+            {
+                // Игрок проиграл, можно добавить дополнительную логику обработки
+            }
         }
     }
 
@@ -107,16 +138,44 @@ namespace gameproject
     {
         private SpriteBatch _spriteBatch;
         private GameModel _model;
+        private Texture2D _noteTexture;
+        private Texture2D _attentionMeterTexture;
 
-        public GameView(SpriteBatch spriteBatch, GameModel model)
+        public GameView(SpriteBatch spriteBatch, GameModel model, Texture2D noteTexture, Texture2D attentionMeterTexture)
         {
             _spriteBatch = spriteBatch;
             _model = model;
+            _noteTexture = noteTexture ?? throw new ArgumentNullException(nameof(noteTexture));
+            _attentionMeterTexture = attentionMeterTexture ?? throw new ArgumentNullException(nameof(attentionMeterTexture));
         }
 
         public void Draw()
         {
-            // Рисование игры, используя _spriteBatch и _model
+            _spriteBatch.Begin();
+
+            // Рисование нот
+            foreach (var note in _model.Track1.Notes)
+            {
+                if (note.IsActive)
+                {
+                    _spriteBatch.Draw(_noteTexture, note.Position, Color.White);
+                }
+            }
+            foreach (var note in _model.Track2.Notes)
+            {
+                if (note.IsActive)
+                {
+                    _spriteBatch.Draw(_noteTexture, note.Position, Color.White);
+                }
+            }
+
+            // Рисование точки сбора нот
+            _spriteBatch.Draw(_noteTexture, _model.CollectionPoint.Position, Color.Red);
+
+            // Рисование индикатора уровня внимания
+            _spriteBatch.Draw(_attentionMeterTexture, new Rectangle(10, 10, (int)(_model.AttentionMeter * 200), 20), Color.Green);
+
+            _spriteBatch.End();
         }
     }
 
@@ -131,8 +190,7 @@ namespace gameproject
 
         public void Update(GameTime gameTime)
         {
-            _model.InputState.Update(); // Добавлено
-            // Дополнительная логика обновления модели на основе ввода пользователя
+            _model.Update(gameTime);
         }
     }
 
@@ -143,6 +201,8 @@ namespace gameproject
         private GameModel _model;
         private GameView _view;
         private GameController _controller;
+        private Texture2D _noteTexture;
+        private Texture2D _attentionMeterTexture;
 
         public RhythmGame()
         {
@@ -155,15 +215,16 @@ namespace gameproject
         {
             _model = new GameModel();
             _spriteBatch = new SpriteBatch(GraphicsDevice);
-            _view = new GameView(_spriteBatch, _model);
-            _controller = new GameController(_model);
 
             base.Initialize();
         }
 
         protected override void LoadContent()
         {
-            // Загрузка контента
+            _noteTexture = Content.Load<Texture2D>("Note"); // Загрузка текстуры ноты
+            _attentionMeterTexture = Content.Load<Texture2D>("AttentionMeter"); // Загрузка текстуры индикатора внимания
+            _view = new GameView(_spriteBatch, _model, _noteTexture, _attentionMeterTexture);
+            _controller = new GameController(_model);
         }
 
         protected override void Update(GameTime gameTime)
@@ -217,7 +278,6 @@ namespace gameproject
         {
             return CurrentKeyboardState.IsKeyDown(key) && LastKeyboardState.IsKeyUp(key);
         }
-
         // Проверка отпуска клавиши
         public bool IsKeyReleased(Keys key)
         {
@@ -237,3 +297,5 @@ namespace gameproject
         }
     }
 }
+
+
