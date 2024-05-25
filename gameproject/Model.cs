@@ -6,6 +6,9 @@ using System.IO;
 using System.Linq;
 using Newtonsoft.Json;
 using System;
+using Microsoft.Xna.Framework.Audio;
+using Microsoft.Xna.Framework.Content;
+using Microsoft.Xna.Framework.Media;
 
 namespace gameproject
 {
@@ -167,10 +170,13 @@ namespace gameproject
 
     public class Level
     {
+        public string Song { get; set; }
+        public float Duration { get; set; }
+        public float BPM { get; set; }
         public List<NoteData> Notes { get; set; } = new List<NoteData>();
     }
 
-    public class LevelLoader
+    public static class LevelLoader
     {
         public static Level LoadLevel(string filePath)
         {
@@ -178,6 +184,7 @@ namespace gameproject
             return JsonConvert.DeserializeObject<Level>(json);
         }
     }
+
 
     public class GameModel
     {
@@ -193,6 +200,7 @@ namespace gameproject
         public NoteCollectionPoint CollectionPoint2 { get; set; }
         public Level CurrentLevel { get; private set; }
         private float _elapsedTime;
+        private Song _song; // Добавляем поле для песни
 
         public int SuperCount { get; set; }
         public int GoodCount { get; set; }
@@ -203,7 +211,7 @@ namespace gameproject
 
         public InputState InputState { get; private set; }
 
-        public GameModel(Level level, GraphicsDevice graphicsDevice)
+        public GameModel(Level level, GraphicsDevice graphicsDevice, ContentManager content)
         {
             CollectionPoint1 = new NoteCollectionPoint(new Vector2(150, graphicsDevice.Viewport.Height - 100));
             CollectionPoint2 = new NoteCollectionPoint(new Vector2(150, graphicsDevice.Viewport.Height - 200));
@@ -212,6 +220,12 @@ namespace gameproject
             Track1 = new Track(new Vector2(graphicsDevice.Viewport.Width + 100, graphicsDevice.Viewport.Height - 100));
             Track2 = new Track(new Vector2(graphicsDevice.Viewport.Width + 100, graphicsDevice.Viewport.Height - 200));
             InputState = new InputState();
+
+            // Загрузка и воспроизведение песни
+            string songNameWithoutExtension = System.IO.Path.GetFileNameWithoutExtension(CurrentLevel.Song);
+            _song = content.Load<Song>(songNameWithoutExtension);
+            MediaPlayer.Play(_song);
+            MediaPlayer.IsRepeating = false;
         }
 
         public void Update(GameTime gameTime, InputState input)

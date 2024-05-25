@@ -32,7 +32,7 @@ namespace gameproject
         protected override void Initialize()
         {
             var level = LevelLoader.LoadLevel("Content/level.json");
-            _model = new GameModel(level, GraphicsDevice);
+            _model = new GameModel(level, GraphicsDevice, Content);
             _inputState = new InputState();
 
             base.Initialize();

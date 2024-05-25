@@ -38,6 +38,10 @@ namespace gameproject
             // Begin drawing sprites
             _spriteBatch.Begin();
 
+            // Draw collection points
+            _spriteBatch.Draw(_noteTexture, _model.CollectionPoint1.Position, Color.Red);
+            _spriteBatch.Draw(_noteTexture, _model.CollectionPoint2.Position, Color.Blue);
+
             // Draw notes on the first track
             foreach (var note in _model.Track1.Notes)
             {
@@ -55,10 +59,6 @@ namespace gameproject
                     _spriteBatch.Draw(_noteTexture, note.Position, Color.White);
                 }
             }
-
-            // Draw collection points
-            _spriteBatch.Draw(_noteTexture, _model.CollectionPoint1.Position, Color.Red);
-            _spriteBatch.Draw(_noteTexture, _model.CollectionPoint2.Position, Color.Blue);
 
             // Draw attention meter
             _spriteBatch.Draw(_attentionMeterTexture, new Rectangle(10, 10, (int)(_model.AttentionMeter * 200), 20), Color.Green);
