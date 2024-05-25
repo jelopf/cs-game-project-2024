@@ -56,8 +56,9 @@ namespace gameproject
                 }
             }
 
-            // Draw collection point
-            _spriteBatch.Draw(_collectionPoint, new Vector2(150, 300), Color.Red);
+            // Draw collection points
+            _spriteBatch.Draw(_noteTexture, _model.CollectionPoint1.Position, Color.Red);
+            _spriteBatch.Draw(_noteTexture, _model.CollectionPoint2.Position, Color.Blue);
 
             // Draw attention meter
             _spriteBatch.Draw(_attentionMeterTexture, new Rectangle(10, 10, (int)(_model.AttentionMeter * 200), 20), Color.Green);
@@ -89,5 +90,4 @@ namespace gameproject
             _spriteBatch.End();
         }
     }
-
 }

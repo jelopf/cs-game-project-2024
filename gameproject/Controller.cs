@@ -3,7 +3,7 @@ using Microsoft.Xna.Framework.Input;
 
 namespace gameproject
 {
-    // Controllers
+    // Controller
     public class GameController
     {
         private GameModel _model;
@@ -17,39 +17,37 @@ namespace gameproject
 
         public void Update(GameTime gameTime, InputState input)
         {
+            // Update the game model with the current input state
             _model.Update(gameTime, input);
         }
 
         public void Draw()
         {
+            // Draw the game view
             _view.Draw();
         }
     }
 
+    // Input State
     public class InputState
     {
-        private KeyboardState _currentKeyboardState;
-        private KeyboardState _previousKeyboardState;
-
-        public InputState()
-        {
-            _currentKeyboardState = Keyboard.GetState();
-        }
+        private KeyboardState _currentKeyState;
+        private KeyboardState _previousKeyState;
 
         public void Update()
         {
-            _previousKeyboardState = _currentKeyboardState;
-            _currentKeyboardState = Keyboard.GetState();
-        }
-
-        public bool IsKeyPressed(Keys key)
-        {
-            return _currentKeyboardState.IsKeyDown(key) && !_previousKeyboardState.IsKeyDown(key);
+            _previousKeyState = _currentKeyState;
+            _currentKeyState = Keyboard.GetState();
         }
 
         public bool IsKeyDown(Keys key)
         {
-            return _currentKeyboardState.IsKeyDown(key);
+            return _currentKeyState.IsKeyDown(key);
+        }
+
+        public bool IsKeyPressed(Keys key)
+        {
+            return _currentKeyState.IsKeyDown(key) && !_previousKeyState.IsKeyDown(key);
         }
     }
 }

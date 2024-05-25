@@ -60,8 +60,8 @@ namespace gameproject
             if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || Keyboard.GetState().IsKeyDown(Keys.Escape))
                 Exit();
 
-            _inputState.Update();
-            _controller.Update(gameTime, _inputState);
+            _inputState.Update(); // Обновление состояния ввода
+            _controller.Update(gameTime, _inputState); // Передача обновленного состояния ввода
 
             base.Update(gameTime);
         }
@@ -75,5 +75,4 @@ namespace gameproject
             base.Draw(gameTime);
         }
     }
-
 }

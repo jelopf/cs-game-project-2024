@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Newtonsoft.Json;
+using System;
 
 namespace gameproject
 {
@@ -63,35 +64,75 @@ namespace gameproject
 
         public void Update(GameTime gameTime, InputState input, List<Note> notes, ref float attentionMeter, Keys collectionKey, GameModel model)
         {
-            foreach (var note in notes.Where(n => n.IsActive).ToList())
+            if (input.IsKeyPressed(collectionKey))
             {
-                if (IsCollidingWith(note) && input.IsKeyPressed(collectionKey))
+                Note closestNote = GetClosestNote(notes);
+                if (closestNote != null)
                 {
-                    State = GetCollectionPointStateForNote(note, input, collectionKey);
-                    UpdateScore(model, note);
-                    note.IsActive = false; // Деактивация ноты
-                    System.Diagnostics.Debug.WriteLine($"Note collected: {State}, Score: {model.Score}"); // Отладочный вывод
+                    float offset = CalculateOffset(closestNote); // Рассчитываем оффсет нажатия
+
+                    State = GetCollectionPointStateForOffset(offset); // Получаем состояние точки сбора в зависимости от оффсета
+
+                    UpdateScore(model, State); // Обновляем очки игрока
+
+                    closestNote.IsActive = false; // Деактивация ноты
+                    System.Diagnostics.Debug.WriteLine($"Note collected: {State}, Offset: {offset}, Score: {model.Score}"); // Отладочный вывод
                 }
             }
         }
 
-        private bool IsCollidingWith(Note note)
+        private Note GetClosestNote(List<Note> notes)
         {
-            return Vector2.Distance(Position, note.Position) < 10;
-        }
+            Note closestNote = null;
+            float minDistance = float.MaxValue;
 
-        private CollectionPointState GetCollectionPointStateForNote(Note note, InputState input, Keys collectionKey)
-        {
-            if (note.Type == NoteType.Tap && input.IsKeyPressed(collectionKey))
+            foreach (var note in notes.Where(n => n.IsActive))
             {
-                return CollectionPointState.Super; // Поменяйте на нужную логику, если требуется
+                float distance = CalculateOffset(note);
+                if (distance < minDistance)
+                {
+                    minDistance = distance;
+                    closestNote = note;
+                }
             }
-            return CollectionPointState.Miss;
+
+            return closestNote;
         }
 
-        private void UpdateScore(GameModel model, Note note)
+        private float CalculateOffset(Note note)
         {
-            switch (State)
+            // Рассчитываем оффсет нажатия в зависимости от положения ноты
+            return Math.Abs(Position.X - note.Position.X);
+        }
+
+        private CollectionPointState GetCollectionPointStateForOffset(float offset)
+        {
+            // Определяем состояние точки сбора в зависимости от оффсета нажатия
+            if (offset < 50) // Примерное значение порога для супер-попадания
+            {
+                return CollectionPointState.Super;
+            }
+            else if (offset < 100) // Примерное значение порога для хорошего попадания
+            {
+                return CollectionPointState.Good;
+            }
+            else if (offset < 150) // Примерное значение порога для нормального попадания
+            {
+                return CollectionPointState.Ok;
+            }
+            else if (offset < 200) // Примерное значение порога для плохого попадания
+            {
+                return CollectionPointState.Bad;
+            }
+            else
+            {
+                return CollectionPointState.Miss; // Если оффсет слишком большой, считаем, что игрок промахнулся
+            }
+        }
+
+        private void UpdateScore(GameModel model, CollectionPointState state)
+        {
+            switch (state)
             {
                 case CollectionPointState.Super:
                     model.SuperCount++;
@@ -175,7 +216,7 @@ namespace gameproject
 
         public void Update(GameTime gameTime, InputState input)
         {
-            InputState = input;
+            InputState = input; // Убедитесь, что обновление происходит здесь
             _elapsedTime += (float)gameTime.ElapsedGameTime.TotalSeconds;
 
             foreach (var noteData in CurrentLevel.Notes.Where(n => n.Time <= _elapsedTime).ToList())
@@ -191,10 +232,10 @@ namespace gameproject
                 CurrentLevel.Notes.Remove(noteData); // Удаляем ноту из уровня после её добавления
             }
 
-            CollectionPoint1.Update(gameTime, input, Track1.Notes, ref _attentionMeter, Keys.W, this);
-            CollectionPoint1.Update(gameTime, input, Track1.Notes, ref _attentionMeter, Keys.Up, this);
-            CollectionPoint2.Update(gameTime, input, Track2.Notes, ref _attentionMeter, Keys.S, this);
-            CollectionPoint2.Update(gameTime, input, Track2.Notes, ref _attentionMeter, Keys.Down, this);
+            CollectionPoint1.Update(gameTime, input, Track1.Notes, ref _attentionMeter, Keys.S, this);
+            CollectionPoint1.Update(gameTime, input, Track1.Notes, ref _attentionMeter, Keys.Down, this);
+            CollectionPoint2.Update(gameTime, input, Track2.Notes, ref _attentionMeter, Keys.W, this);
+            CollectionPoint2.Update(gameTime, input, Track2.Notes, ref _attentionMeter, Keys.Up, this);
 
             UpdateNotes(gameTime, Track1.Notes);
             UpdateNotes(gameTime, Track2.Notes);
@@ -202,6 +243,7 @@ namespace gameproject
             if (_attentionMeter >= 1.0f)
             {
                 // Handle game over logic
+                System.Diagnostics.Debug.WriteLine("Game Over: Attention Meter is full.");
             }
         }
 
