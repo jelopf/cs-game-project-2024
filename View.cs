@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
 
+
 namespace gameproject
 {
     // Views
@@ -16,34 +17,73 @@ namespace gameproject
         private Texture2D _playerIdleTexture;
         private Texture2D _playerUpTexture;
         private Texture2D _playerDownTexture;
-        private Texture2D _enemyTexture;
         private Texture2D _collectionPointUp;
         private Texture2D _collectionPointDown;
         private SpriteFont _font;
         private Texture2D _backgroundTexture;
         private Texture2D _treesTexture;
         private Texture2D _grassTexture;
+        private Texture2D _enemyNeutralTexture;
+        private Texture2D _enemyHesitateTexture;
+        private Texture2D _enemyAngryTexture;
+        private Texture2D _playerDeadTexture;
+        private Texture2D _playerEndTexture;
         private float _grassOffset;
         private float _treesOffset;
 
-        public GameView(SpriteBatch spriteBatch, GameModel model, Texture2D noteTextureUp, Texture2D noteTextureDown, Texture2D attentionMeterTexture, Texture2D playerIdleTexture, Texture2D playerUpTexture, Texture2D playerDownTexture, Texture2D enemyTexture, Texture2D collectionPointUp, Texture2D collectionPointDown, SpriteFont font, Texture2D backgroundTexture, Texture2D treesTexture, Texture2D grassTexture)
+        private double _timeSinceLastBlink;
+        private bool _isPlayerDeadVisible;
+        private float _enemyAngle;
+        private float _enemySpeed;
+        private Vector2 _enemyPosition;
+        private float _enemyRadius;
+        private bool _enemyMovingForward;
+
+        public GameView(SpriteBatch spriteBatch,
+                        GameModel model,
+                        Texture2D noteTextureUp,
+                        Texture2D noteTextureDown,
+                        Texture2D attentionMeterTexture,
+                        Texture2D playerIdleTexture,
+                        Texture2D playerUpTexture,
+                        Texture2D playerDownTexture,
+                        Texture2D enemyNeutralTexture,
+                        Texture2D enemyHesitateTexture,
+                        Texture2D enemyAngryTexture,
+                        Texture2D playerDeadTexture,
+                        Texture2D playerEndTexture,
+                        Texture2D collectionPointUp,
+                        Texture2D collectionPointDown,
+                        SpriteFont font,
+                        Texture2D backgroundTexture,
+                        Texture2D treesTexture,
+                        Texture2D grassTexture)
         {
             _spriteBatch = spriteBatch;
             _model = model;
-            _noteTextureUp = noteTextureUp ?? throw new ArgumentNullException(nameof(noteTextureUp));
             _noteTextureDown = noteTextureDown ?? throw new ArgumentNullException(nameof(noteTextureDown));
+            _noteTextureUp = noteTextureUp ?? throw new ArgumentNullException(nameof(noteTextureUp));
             _attentionMeterTexture = attentionMeterTexture ?? throw new ArgumentNullException(nameof(attentionMeterTexture));
             _playerIdleTexture = playerIdleTexture ?? throw new ArgumentNullException(nameof(playerIdleTexture));
             _playerUpTexture = playerUpTexture ?? throw new ArgumentNullException(nameof(playerUpTexture));
             _playerDownTexture = playerDownTexture ?? throw new ArgumentNullException(nameof(playerDownTexture));
-            _enemyTexture = enemyTexture ?? throw new ArgumentNullException(nameof(enemyTexture));
+            _enemyNeutralTexture = enemyNeutralTexture ?? throw new ArgumentNullException(nameof(enemyNeutralTexture));
+            _enemyHesitateTexture = enemyHesitateTexture ?? throw new ArgumentNullException(nameof(enemyHesitateTexture));
+            _enemyAngryTexture = enemyAngryTexture ?? throw new ArgumentNullException(nameof(enemyAngryTexture));
+            _playerDeadTexture = playerDeadTexture ?? throw new ArgumentNullException(nameof(playerDeadTexture));
+            _playerEndTexture = playerEndTexture ?? throw new ArgumentNullException(nameof(playerEndTexture));
             _collectionPointUp = collectionPointUp ?? throw new ArgumentNullException(nameof(collectionPointUp));
             _collectionPointDown = collectionPointDown ?? throw new ArgumentNullException(nameof(collectionPointDown));
             _font = font ?? throw new ArgumentNullException(nameof(font));
             _backgroundTexture = backgroundTexture ?? throw new ArgumentNullException(nameof(backgroundTexture));
             _treesTexture = treesTexture ?? throw new ArgumentNullException(nameof(treesTexture));
             _grassTexture = grassTexture ?? throw new ArgumentNullException(nameof(grassTexture));
-            
+
+            _enemyRadius = 50f; // Радиус движения злодея
+            _enemySpeed = model.CurrentLevel.BPM / 60f * MathHelper.Pi; // Устанавливаем скорость в такт музыке (полуокружность)
+            _enemyAngle = 0f;
+            _enemyMovingForward = true;
+            _enemyPosition = new Vector2(400, 100); // Начальная позиция злодея
         }
 
         public void Update(GameTime gameTime)
@@ -59,23 +99,60 @@ namespace gameproject
 
             if (_treesOffset >= _treesTexture.Width)
                 _treesOffset -= _treesTexture.Width;
-        }
 
+            // Обновляем положение врага по верхней полуокружности
+            if (_model.AttentionMeterValue < 100f)
+            {
+                if (_enemyMovingForward)
+                {
+                    _enemyAngle += _enemySpeed * (float)gameTime.ElapsedGameTime.TotalSeconds;
+                    if (_enemyAngle >= MathHelper.Pi)
+                    {
+                        _enemyAngle = MathHelper.Pi;
+                        _enemyMovingForward = false;
+                    }
+                }
+                else
+                {
+                    _enemyAngle -= _enemySpeed * (float)gameTime.ElapsedGameTime.TotalSeconds;
+                    if (_enemyAngle <= 0)
+                    {
+                        _enemyAngle = 0;
+                        _enemyMovingForward = true;
+                    }
+                }
+
+                _enemyPosition = new Vector2(350 + _enemyRadius * (float)Math.Cos(_enemyAngle), 30 - _enemyRadius * (float)Math.Sin(_enemyAngle));
+            }
+            else
+            {
+                _model.EnemyPosition = new Vector2(400, 0); // Враг стоит на месте при AttentionMeter = 100
+            }
+
+            // Обновляем состояние мигания игрока при AttentionMeter = 100
+            if (_model.AttentionMeterValue >= 100f)
+            {
+                _timeSinceLastBlink += gameTime.ElapsedGameTime.TotalSeconds;
+                if (_timeSinceLastBlink >= 0.25)
+                {
+                    _isPlayerDeadVisible = !_isPlayerDeadVisible;
+                    _timeSinceLastBlink = 0;
+                }
+            }
+        }
 
         public void Draw()
         {
-            // Begin drawing sprites
             _spriteBatch.Begin();
 
-            // Draw background
             _spriteBatch.Draw(_backgroundTexture, new Rectangle(0, 0, _spriteBatch.GraphicsDevice.Viewport.Width, _spriteBatch.GraphicsDevice.Viewport.Height), Color.White);
             DrawBackground();
 
-            // Draw collection points
+            // точки сбора
             _spriteBatch.Draw(_collectionPointUp, _model.CollectionPoint1.Position, Color.White);
             _spriteBatch.Draw(_collectionPointDown, _model.CollectionPoint2.Position, Color.White);
 
-            // Draw notes on the first track
+            // первая дорожка
             foreach (var note in _model.Track1.Notes)
             {
                 if (note.IsActive)
@@ -84,7 +161,7 @@ namespace gameproject
                 }
             }
 
-            // Draw notes on the second track
+            // вторая дорожка
             foreach (var note in _model.Track2.Notes)
             {
                 if (note.IsActive)
@@ -93,12 +170,17 @@ namespace gameproject
                 }
             }
 
-            // Draw attention meter
-            _spriteBatch.Draw(_attentionMeterTexture, new Rectangle(10, 10, (int)(_model.AttentionMeter * 200), 20), Color.Green);
+            // Отрисовка шкалы внимания
+            DrawAttentionMeter();
 
-            // Choose player texture based on input
+            // выбор текстуры игрока
             Texture2D playerTexture = _playerIdleTexture;
-            if (_model.InputState.IsKeyDown(Keys.W) || _model.InputState.IsKeyDown(Keys.Up))
+            if (_model.AttentionMeterValue >= 100f)
+            {
+                // Если показатель внимания игрока равен 100%, отображаем спрайт мертвого игрока
+                playerTexture = _playerDeadTexture;
+            }
+            else if (_model.InputState.IsKeyDown(Keys.W) || _model.InputState.IsKeyDown(Keys.Up))
             {
                 playerTexture = _playerUpTexture;
             }
@@ -107,11 +189,9 @@ namespace gameproject
                 playerTexture = _playerDownTexture;
             }
 
-            // Draw player and enemy
-            _spriteBatch.Draw(playerTexture, new Vector2(100, 200), Color.White);
-            _spriteBatch.Draw(_enemyTexture, new Vector2(600, 75), Color.White);
+            _spriteBatch.Draw(playerTexture, new Vector2(60, 100), Color.White);
+            _spriteBatch.Draw(GetEnemyTexture(), _enemyPosition, Color.White);
 
-            // Draw score and other statistics
             _spriteBatch.DrawString(_font, $"Score: {_model.Score}", new Vector2(10, 40), Color.White);
             _spriteBatch.DrawString(_font, $"Super: {_model.SuperCount}", new Vector2(10, 60), Color.White);
             _spriteBatch.DrawString(_font, $"Good: {_model.GoodCount}", new Vector2(10, 80), Color.White);
@@ -119,8 +199,37 @@ namespace gameproject
             _spriteBatch.DrawString(_font, $"Bad: {_model.BadCount}", new Vector2(10, 120), Color.White);
             _spriteBatch.DrawString(_font, $"Miss: {_model.MissCount}", new Vector2(10, 140), Color.White);
 
-            // End drawing sprites
             _spriteBatch.End();
+        }
+
+        private void DrawAttentionMeter()
+        {
+            float meterWidth = 200f;
+            float meterHeight = 20f;
+            float meterX = (_spriteBatch.GraphicsDevice.Viewport.Width - meterWidth) / 2;
+            float meterY = 20f;
+            float fillWidth = meterWidth * (_model.AttentionMeterValue / 100f);
+
+            _spriteBatch.Draw(_attentionMeterTexture, new Rectangle((int)meterX, (int)meterY, (int)meterWidth, (int)meterHeight), Color.LightSlateGray);
+            _spriteBatch.Draw(_attentionMeterTexture, new Rectangle((int)meterX, (int)meterY, (int)fillWidth, (int)meterHeight), Color.Red);
+
+        }
+
+        private Texture2D GetEnemyTexture()
+        {
+            // Возвращает текстуру злодея в зависимости от его состояния
+            if (_model.AttentionMeterValue >= 100f)
+            {
+                return _enemyAngryTexture;
+            }
+            else if (_model.AttentionMeterValue > 75f)
+            {
+                return _enemyHesitateTexture;
+            }
+            else
+            {
+                return _enemyNeutralTexture;
+            }
         }
 
         private void DrawBackground()

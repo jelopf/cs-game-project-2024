@@ -1,14 +1,13 @@
 ﻿using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using Microsoft.Xna.Framework.Media;
+using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using Newtonsoft.Json;
-using System;
-using Microsoft.Xna.Framework.Audio;
-using Microsoft.Xna.Framework.Content;
-using Microsoft.Xna.Framework.Media;
 
 namespace gameproject
 {
@@ -65,7 +64,7 @@ namespace gameproject
             State = CollectionPointState.Miss;
         }
 
-        public void Update(GameTime gameTime, InputState input, List<Note> notes, ref float attentionMeter, Keys collectionKey, GameModel model)
+        public void Update(GameTime gameTime, InputState input, List<Note> notes, ref AttentionMeter attentionMeter, Keys collectionKey, GameModel model)
         {
             if (input.IsKeyPressed(collectionKey))
             {
@@ -79,10 +78,30 @@ namespace gameproject
                     UpdateScore(model, State); // Обновляем очки игрока
 
                     closestNote.IsActive = false; // Деактивация ноты
-                    System.Diagnostics.Debug.WriteLine($"Note collected: {State}, Offset: {offset}, Score: {model.Score}"); // Отладочный вывод
+
+                    // Обновляем значение attentionMeter в зависимости от состояния
+                    switch (State)
+                    {
+                        case CollectionPointState.Miss:
+                            attentionMeter.Increase(20f); // Прибавляем 20%
+                            break;
+                        case CollectionPointState.Bad:
+                            attentionMeter.Increase(5f); // Прибавляем 5%
+                            break;
+                        case CollectionPointState.Good:
+                        case CollectionPointState.Super:
+                            // Уменьшаем внимание на 5% с каждой пятой хорошей/супер нотой
+                            model.GoodCount++;
+                            if (model.GoodCount % 5 == 0)
+                            {
+                                attentionMeter.Decrease(5f);
+                            }
+                            break;
+                    }
                 }
             }
         }
+
 
         private Note GetClosestNote(List<Note> notes)
         {
@@ -111,25 +130,25 @@ namespace gameproject
         private CollectionPointState GetCollectionPointStateForOffset(float offset)
         {
             // Определяем состояние точки сбора в зависимости от оффсета нажатия
-            if (offset < 50) // Примерное значение порога для супер-попадания
+            if (offset < 50)
             {
                 return CollectionPointState.Super;
             }
-            else if (offset < 100) // Примерное значение порога для хорошего попадания
+            else if (offset < 100)
             {
                 return CollectionPointState.Good;
             }
-            else if (offset < 150) // Примерное значение порога для нормального попадания
+            else if (offset < 150)
             {
                 return CollectionPointState.Ok;
             }
-            else if (offset < 200) // Примерное значение порога для плохого попадания
+            else if (offset < 200)
             {
                 return CollectionPointState.Bad;
             }
             else
             {
-                return CollectionPointState.Miss; // Если оффсет слишком большой, считаем, что игрок промахнулся
+                return CollectionPointState.Miss;
             }
         }
 
@@ -161,6 +180,7 @@ namespace gameproject
         }
     }
 
+
     public class NoteData
     {
         public NoteType Type { get; set; }
@@ -185,22 +205,61 @@ namespace gameproject
         }
     }
 
+    public class AttentionMeter
+    {
+        private float _value = 0f;
+        private bool _songEnded = false;
+
+        public float Value
+        {
+            get { return _value; }
+            private set { _value = MathHelper.Clamp(value, 0f, 100f); }
+        }
+
+        public bool SongEnded => _songEnded;
+
+        public void Increase(float amount)
+        {
+            Value += amount;
+        }
+
+        public void Decrease(float amount)
+        {
+            Value -= amount;
+        }
+
+        public void Reset()
+        {
+            Value = 0f;
+            _songEnded = false;
+        }
+
+        public void CheckWinLossCondition(float elapsedTime, float songDuration)
+        {
+            if (Value >= 100f && elapsedTime < songDuration)
+            {
+                // Проигрыш
+                _songEnded = true;
+            }
+            else if (Value < 100f && elapsedTime >= songDuration)
+            {
+                // Победа
+                _songEnded = true;
+            }
+        }
+    }
 
     public class GameModel
     {
         public Track Track1 { get; set; }
         public Track Track2 { get; set; }
-        private float _attentionMeter;
-        public float AttentionMeter
-        {
-            get { return _attentionMeter; }
-            private set { _attentionMeter = value; }
-        }
+        private AttentionMeter _attentionMeter = new AttentionMeter();
+        public float AttentionMeterValue => _attentionMeter.Value;
         public NoteCollectionPoint CollectionPoint1 { get; set; }
         public NoteCollectionPoint CollectionPoint2 { get; set; }
         public Level CurrentLevel { get; private set; }
         private float _elapsedTime;
-        private Song _song; // Добавляем поле для песни
+        private Song _song;
 
         public int SuperCount { get; set; }
         public int GoodCount { get; set; }
@@ -211,27 +270,47 @@ namespace gameproject
 
         public InputState InputState { get; private set; }
 
+        public Vector2 EnemyPosition { get; set; }
+        public float MusicPosition => _elapsedTime / CurrentLevel.Duration;
+
         public GameModel(Level level, GraphicsDevice graphicsDevice, ContentManager content)
         {
-            CollectionPoint1 = new NoteCollectionPoint(new Vector2(100, graphicsDevice.Viewport.Height - 90));
-            CollectionPoint2 = new NoteCollectionPoint(new Vector2(100, graphicsDevice.Viewport.Height - 150));
+            CollectionPoint1 = new NoteCollectionPoint(new Vector2(75, graphicsDevice.Viewport.Height - 110));
+            CollectionPoint2 = new NoteCollectionPoint(new Vector2(75, graphicsDevice.Viewport.Height - 170));
             CurrentLevel = level;
 
-            Track1 = new Track(new Vector2(graphicsDevice.Viewport.Width + 100, graphicsDevice.Viewport.Height - 90));
-            Track2 = new Track(new Vector2(graphicsDevice.Viewport.Width + 100, graphicsDevice.Viewport.Height - 150));
+            Track1 = new Track(new Vector2(graphicsDevice.Viewport.Width + 0, graphicsDevice.Viewport.Height - 110));
+            Track2 = new Track(new Vector2(graphicsDevice.Viewport.Width + 0, graphicsDevice.Viewport.Height - 170));
             InputState = new InputState();
 
             // Загрузка и воспроизведение песни
-            string songNameWithoutExtension = System.IO.Path.GetFileNameWithoutExtension(CurrentLevel.Song);
-            _song = content.Load<Song>(songNameWithoutExtension);
+            string songName = System.IO.Path.GetFileNameWithoutExtension(CurrentLevel.Song);
+            _song = content.Load<Song>(songName);
             MediaPlayer.Play(_song);
             MediaPlayer.IsRepeating = false;
         }
 
         public void Update(GameTime gameTime, InputState input)
         {
-            InputState = input; 
+            InputState = input;
             _elapsedTime += (float)gameTime.ElapsedGameTime.TotalSeconds;
+
+            // Проверяем, завершилась ли песня или игрок проиграл
+            _attentionMeter.CheckWinLossCondition(_elapsedTime, CurrentLevel.Duration);
+            if (_attentionMeter.SongEnded)
+            {
+                if (_attentionMeter.Value >= 100)
+                {
+                    // Проигрыш
+                    System.Diagnostics.Debug.WriteLine("Game Over: Attention Meter is full.");
+                }
+                else
+                {
+                    // Победа
+                    System.Diagnostics.Debug.WriteLine("Victory!");
+                }
+                return;
+            }
 
             foreach (var noteData in CurrentLevel.Notes.Where(n => n.Time <= _elapsedTime).ToList())
             {
@@ -243,7 +322,7 @@ namespace gameproject
                 {
                     Track2.AddNote(noteData.Type);
                 }
-                CurrentLevel.Notes.Remove(noteData); // Удаляем ноту из уровня после её добавления
+                CurrentLevel.Notes.Remove(noteData);
             }
 
             CollectionPoint1.Update(gameTime, input, Track1.Notes, ref _attentionMeter, Keys.S, this);
@@ -253,17 +332,11 @@ namespace gameproject
 
             UpdateNotes(gameTime, Track1.Notes);
             UpdateNotes(gameTime, Track2.Notes);
-
-            if (_attentionMeter >= 1.0f)
-            {
-                // Handle game over logic
-                System.Diagnostics.Debug.WriteLine("Game Over: Attention Meter is full.");
-            }
         }
 
         private void UpdateNotes(GameTime gameTime, List<Note> notes)
         {
-            float speed = 100f; // Скорость движения нот
+            float speed = 100f;
             foreach (var note in notes)
             {
                 // Обновление позиции нот

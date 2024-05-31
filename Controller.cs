@@ -17,13 +17,11 @@ namespace gameproject
 
         public void Update(GameTime gameTime, InputState input)
         {
-            // Update the game model with the current input state
             _model.Update(gameTime, input);
         }
 
         public void Draw()
         {
-            // Draw the game view
             _view.Draw();
         }
     }
